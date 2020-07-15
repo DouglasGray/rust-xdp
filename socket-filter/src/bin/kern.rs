@@ -7,6 +7,8 @@ use socket_filter::Config;
 
 program!(0xFFFFFFFE, "GPL");
 
+// User program should update this map with the connection's local port
+// and the server's bound port
 #[map("config")]
 static mut config: HashMap<u32, Config> = HashMap::with_max_entries(1);
 

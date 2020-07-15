@@ -7,8 +7,8 @@ required source port and destination port, and if so, forwards the payload to us
 to let the XDP program know what the right source/destination ports to filter on are. This can be done by accessing 
 the XDP program's ```config``` map from the program and setting an instance of ```src/lib/Config``` at key ```0```.
 
-An example can be found at ```src/bin/user.rs```. To run this first make sure you have ```cargo-bpf``` installed. 
-Then, in the ```rust-xdp/socket-filter``` directory, run:
+An example can be found at ```src/bin/user.rs``` where a TCP server sends the time every second.  To run it first 
+make sure you have ```cargo-bpf``` installed.  Then, in the ```rust-xdp/socket-filter``` directory, run:
 
     cargo bpf build filter
     sudo env PATH=$PATH cargo run --bin example

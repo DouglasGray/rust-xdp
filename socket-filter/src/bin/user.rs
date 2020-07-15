@@ -1,3 +1,6 @@
+/// An example program which forwards packet payloads from a TCP connection
+/// directly to userspace. The TCP server sends the time (as a string) over
+/// the wire every second.
 use chrono::offset::Utc;
 use chrono::DateTime;
 use clap::{App, Arg};
@@ -25,6 +28,7 @@ async fn close_and_drain_receiver<T>(mut r: Receiver<T>) {
     while let Some(_) = r.next().await {}
 }
 
+/// Sends the time after every `interval`
 async fn ticker(
     mut send_to: Sender<DateTime<Utc>>,
     interval: Duration,
@@ -50,6 +54,8 @@ async fn ticker(
     close_and_drain_receiver(shutdown_signal).await;
 }
 
+/// Looks after the connection, forwarding the time when it's received and watching
+/// for connection close / server shutdown
 async fn handle_connection(mut conn: TcpStream, mut shutdown_signal: Receiver<()>) {
     let (mut stop_ticker_w, stop_ticker_r) = mpsc::channel(1);
     let (ticker_w, mut ticker_r) = mpsc::channel(1);
@@ -92,6 +98,7 @@ async fn handle_connection(mut conn: TcpStream, mut shutdown_signal: Receiver<()
     );
 }
 
+/// Basic TCP server
 async fn start_server(
     addr: SocketAddr,
     connect_event: oneshot::Sender<()>,
@@ -147,6 +154,8 @@ async fn start_server(
     println!("Stopping server");
 }
 
+/// Processes the packet payloads send by the attached XDP program. The server sends
+/// the current time as a string as the payload, so it's easy to convert the payload bytes
 async fn process_xdp_packets(mut loaded_prog: Loaded, mut shutdown_signal: Receiver<()>) {
     loop {
         select!(
@@ -175,16 +184,9 @@ async fn process_xdp_packets(mut loaded_prog: Loaded, mut shutdown_signal: Recei
     println!("Unloading XDP program");
 }
 
-async fn drain_tcp_stream(s: &mut TcpStream) {
-    let mut buffer = [0; 10];
-
-    while let Ok(n) = s.read(&mut buffer[..]).await {
-        if n == 0 {
-            break;
-        }
-    }
-}
-
+/// Here we load and attach the XDP program, start the TCP server and open a TCP
+/// connection. Then after updating the XDP program's `config` map with the connection's
+/// port we should see filtered packets payloads (the current time) printed to screen.
 #[tokio::main]
 async fn main() {
     let matches = App::new("XDP payload filter")
@@ -289,7 +291,13 @@ async fn main() {
 
     // Also need to drain the actual TCP stream
     tokio::spawn(async move {
-        drain_tcp_stream(&mut tcp_stream).await;
+        let mut buffer = [0; 10];
+
+        while let Ok(n) = tcp_stream.read(&mut buffer[..]).await {
+            if n == 0 {
+                break;
+            }
+        }
     });
 
     // Wait on interrupt and then shut down
